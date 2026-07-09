@@ -1,0 +1,42 @@
+services:
+
+  backend:
+    build: .
+    container_name: complaint-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./database:/app/database
+      - ./vectorstore:/app/vectorstore
+      - ./data:/app/data
+    restart: unless-stopped
+
+  customer-ui:
+    build: .
+    container_name: customer-ui
+    command: streamlit run frontend/customer_app.py --server.address=0.0.0.0 --server.port=8501
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  agent-ui:
+    build: .
+    container_name: agent-ui
+    command: streamlit run frontend/agent_dashboard.py --server.address=0.0.0.0 --server.port=8502
+    ports:
+      - "8502:8502"
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
