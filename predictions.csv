@@ -1,3 +1,0 @@
-complaint_id,gold_category,predicted_category,gold_severity,predicted_severity,gold_sentiment,predicted_sentiment,gold_action,predicted_action,gold_final_decision,predicted_final_decision,status,error
-CMP0001,Damaged Product,Damaged Product,High,Medium,Neutral,Frustrated,Replacement,Approve Replacement,Auto Resolve,send,SUCCESS,
-CMP0002,Damaged Product,,,,,,Refund,,Auto Resolve,,FAILED,Error executing plan: Internal error: Error creating hnsw segment reader: Nothing found on disk
