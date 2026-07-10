@@ -198,30 +198,411 @@ reducing manual intervention while maintaining policy compliance.
 
 ---
 
-## Architecture
+# Detailed System Architecture
+
+NovaMart Complaint Triage Agent follows a modular, layered architecture that separates user interfaces, API services, workflow orchestration, AI reasoning, retrieval systems, and persistent storage. Each layer has a dedicated responsibility, making the system scalable, maintainable, and easy to extend.
+
+---
+
+## High-Level Architecture
 
 ```
-                    Customer Complaint
-                           │
-                           ▼
-                    FastAPI Backend
-                           │
-                 LangGraph Workflow
-                           │
-      ┌──────────────┬──────────────┬──────────────┐
-      ▼              ▼              ▼
- Order Lookup   Policy Retrieval  Historical Cases
-      │              │              │
-      └──────────────┴──────────────┘
-                     ▼
-            AI Response Generation
-                     ▼
-           Compliance Verification
-                     ▼
-        Approve │ Revise │ Escalate
-                     ▼
-          Customer & Agent Response
+                          +---------------------------+
+                          |       Customer UI         |
+                          |      (Streamlit App)      |
+                          +------------+--------------+
+                                       |
+                                       |
+                                       v
+                          +---------------------------+
+                          |       FastAPI Backend      |
+                          |   REST API Endpoints       |
+                          +------------+--------------+
+                                       |
+                                       |
+                                       v
+                    +--------------------------------------+
+                    |      LangGraph Workflow Engine        |
+                    +--------------------------------------+
+                                       |
+        -------------------------------------------------------------------
+        |               |                 |                |               |
+        v               v                 v                v               v
+ Load Order      Classify Complaint   Retrieve RAG   Generate AI    Compliance
+   Details                              Context       Response        Validation
+        |               |                 |                |               |
+        -------------------------------------------------------------------
+                                       |
+                                       v
+                          +---------------------------+
+                          | Decision Router           |
+                          |---------------------------|
+                          | Send Response             |
+                          | Revise Response           |
+                          | Escalate Complaint        |
+                          +------------+--------------+
+                                       |
+                                       |
+                                       v
+                   +-------------------------------------------+
+                   | Customer Response / Agent Dashboard       |
+                   +-------------------------------------------+
 ```
+
+---
+
+# Layered Architecture
+
+## 1. Presentation Layer
+
+The project contains two independent Streamlit applications.
+
+### Customer Dashboard
+
+The customer dashboard allows users to:
+
+- Submit complaints
+- Enter Order ID
+- Receive AI-generated resolutions
+- View refund/replacement information
+
+This interface hides all internal workflow details and provides only customer-facing information.
+
+---
+
+### Agent Dashboard
+
+The internal support dashboard provides enterprise-level visibility into the complaint lifecycle.
+
+Support agents can view:
+
+- Customer profile
+- Order information
+- Complaint details
+- AI recommendation
+- Confidence score
+- Compliance status
+- Retrieved policies
+- Historical complaint cases
+- Workflow execution trace
+- Approval / Escalation controls
+
+This dashboard acts as the Human-in-the-Loop interface.
+
+---
+
+# 2. API Layer
+
+The FastAPI backend exposes REST APIs used by both dashboards.
+
+Main endpoints include:
+
+```
+POST /complaint
+```
+
+Customer complaint processing.
+
+```
+POST /agent/complaint
+```
+
+Internal complaint analysis.
+
+```
+POST /agent/approve
+```
+
+Approve AI recommendation.
+
+```
+POST /agent/escalate
+```
+
+Escalate complaint for manual review.
+
+The API layer validates requests, invokes the LangGraph workflow, and returns structured JSON responses.
+
+---
+
+# 3. Workflow Orchestration Layer
+
+The core business logic is implemented using LangGraph.
+
+Instead of relying on a single LLM prompt, the system executes a multi-step workflow where every node performs a dedicated responsibility.
+
+Workflow nodes include:
+
+```
+Load Order
+
+↓
+
+Complaint Classification
+
+↓
+
+Policy Retrieval
+
+↓
+
+Historical Case Retrieval
+
+↓
+
+AI Recommendation Generation
+
+↓
+
+Compliance Validation
+
+↓
+
+Decision Router
+
+↓
+
+Send / Revise / Escalate
+```
+
+Each node updates a shared workflow state that is passed throughout the graph.
+
+---
+
+# 4. AI Processing Layer
+
+The AI layer combines multiple techniques rather than depending solely on an LLM.
+
+## Complaint Classification
+
+Determines:
+
+- Complaint Category
+- Severity
+- Customer Sentiment
+
+These outputs guide retrieval and decision making.
+
+---
+
+## AI Response Generation
+
+Google Gemini generates:
+
+- Resolution summary
+- Refund amount
+- Replacement decision
+- Compensation
+- AI reasoning
+- Confidence score
+
+The model receives structured business context instead of raw user input.
+
+---
+
+# 5. Retrieval-Augmented Generation (RAG)
+
+The project uses Retrieval-Augmented Generation to ground LLM responses in enterprise knowledge.
+
+Before generating a recommendation, the system retrieves:
+
+- Company Policies
+- Compliance Rulebook
+- Escalation Handbook
+- Historical Complaint Cases
+
+using semantic similarity search.
+
+This greatly reduces hallucinations while improving consistency.
+
+---
+
+## Retrieval Pipeline
+
+```
+Complaint
+
+↓
+
+Embedding Generation
+
+↓
+
+Semantic Search
+
+↓
+
+Relevant Policy Documents
+
++
+
+Historical Cases
+
+↓
+
+Context Injection
+
+↓
+
+Gemini LLM
+
+↓
+
+Grounded AI Response
+```
+
+---
+
+# 6. Vector Database Layer
+
+The project uses ChromaDB as its vector database.
+
+Collections include:
+
+```
+Policies
+
+Historical Cases
+
+Compliance Rules
+
+Escalation Rules
+```
+
+Each collection stores vector embeddings generated using:
+
+```
+BAAI/bge-small-en-v1.5
+```
+
+This enables semantic retrieval rather than keyword matching.
+
+---
+
+# 7. Database Layer
+
+SQLite stores structured business data.
+
+Main tables include:
+
+### Orders
+
+Stores customer and order information.
+
+### Complaints
+
+Stores:
+
+- Complaint ID
+- Order ID
+- Complaint Text
+- Category
+- Severity
+- Sentiment
+- AI Recommendation
+- Confidence
+- Status
+
+Status values:
+
+```
+Pending
+
+Resolved
+
+Escalated
+```
+
+### Historical Resolutions
+
+Contains previously resolved complaints used during RAG.
+
+### Run Logs
+
+Stores workflow execution history for debugging and auditing.
+
+---
+
+# 8. Compliance Layer
+
+Every AI recommendation passes through a compliance validation stage.
+
+Validation checks include:
+
+- Confidence threshold
+- Refund limit
+- Escalation requirement
+- Business rule validation
+
+Unsafe recommendations never reach the customer directly.
+
+---
+
+# 9. Human-in-the-Loop Layer
+
+The system supports manual intervention when required.
+
+Support agents can:
+
+- Review AI recommendations
+- Approve resolutions
+- Escalate complaints
+
+This ensures AI remains under human supervision for critical business decisions.
+
+---
+
+# Data Flow
+
+```
+Customer Complaint
+        │
+        ▼
+FastAPI Endpoint
+        │
+        ▼
+Load Order Information
+        │
+        ▼
+Complaint Classification
+        │
+        ▼
+Retrieve Company Policies
+        │
+        ▼
+Retrieve Historical Cases
+        │
+        ▼
+Generate AI Recommendation
+        │
+        ▼
+Compliance Validation
+        │
+        ▼
+Decision Router
+        │
+  ┌─────┼──────────┐
+  ▼     ▼          ▼
+Send  Revise   Escalate
+  │
+  ▼
+Customer & Agent Dashboard
+```
+
+---
+
+# Design Principles
+
+The architecture was designed around the following principles:
+
+- Modular workflow orchestration using LangGraph
+- Separation of concerns across independent layers
+- Retrieval-Augmented Generation for grounded AI responses
+- Explainable AI through reasoning and execution traces
+- Human-in-the-loop decision making
+- Policy-compliant response generation
+- Extensible architecture for future enterprise integrations
+- Containerized deployment using Docker
 
 ---
 
